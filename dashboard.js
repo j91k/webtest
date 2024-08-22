@@ -131,15 +131,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 .range(['green', 'red']);
         }
 
+        // Adjust bar width for Chart 2
+        const barWidth = container.id === 'chart2' ? x.bandwidth() * 0.5 : x.bandwidth();
+
         svg.append('g')
             .selectAll('.bar')
             .data(data)
             .enter()
             .append('rect')
             .attr('class', 'bar')
-            .attr('x', d => x(d[0]))
+            .attr('x', d => x(d[0]) + (x.bandwidth() - barWidth) / 2) // Center the bar
             .attr('y', d => y(d[1]))
-            .attr('width', x.bandwidth())
+            .attr('width', barWidth)
             .attr('height', d => height - y(d[1]))
             .attr('fill', (d, i) => {
                 if (useGradient) {
