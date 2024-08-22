@@ -4,6 +4,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const creditScoreFilterSelect = document.getElementById('creditScoreFilter');
     const chart1Container = document.getElementById('chart1');
     const chart2Container = document.getElementById('chart2');
+    const chart3Container = document.getElementById('chart3');
+    const chart4Container = document.getElementById('chart4');
 
     d3.json('data2.json').then(data => {
         if (!data || !Array.isArray(data)) {
@@ -13,6 +15,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
         updateChart1('default', 'all', data);
         updateChart2('default', 'all', data);
+        updateChart3(data);
+        updateChart4(data);
 
         filterSelect.addEventListener('change', function() {
             updateChart1(filterSelect.value, latePaymentsFilterSelect.value, data);
@@ -25,6 +29,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
         creditScoreFilterSelect.addEventListener('change', function() {
             updateChart2(filterSelect.value, creditScoreFilterSelect.value, data);
+        });
+
+        window.addEventListener('resize', function() {
+            updateChart1(filterSelect.value, latePaymentsFilterSelect.value, data);
+            updateChart2(filterSelect.value, creditScoreFilterSelect.value, data);
+            updateChart3(data);
+            updateChart4(data);
         });
     }).catch(error => {
         console.error('Error loading data:', error);
@@ -102,15 +113,31 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    function updateChart3(data) {
+        chart3Container.innerHTML = '';
+        // Add your chart 3 logic here
+        // For now, let's just add a placeholder text
+        chart3Container.textContent = 'Chart 3 placeholder';
+    }
+
+    function updateChart4(data) {
+        chart4Container.innerHTML = '';
+        // Add your chart 4 logic here
+        // For now, let's just add a placeholder text
+        chart4Container.textContent = 'Chart 4 placeholder';
+    }
+
     function renderBarChart(data, xLabel, yLabel, container, useGradient = false, isChart2Default = false, barPadding = 0.1) {
+        const containerWidth = container.clientWidth;
+        const containerHeight = container.clientHeight;
         const margin = { top: 40, right: 20, bottom: 60, left: 50 };
-        const width = container.clientWidth - margin.left - margin.right;
-        const height = container.clientHeight - margin.top - margin.bottom;
+        const width = containerWidth - margin.left - margin.right;
+        const height = containerHeight - margin.top - margin.bottom;
 
         const svg = d3.select(container)
             .append('svg')
-            .attr('width', width + margin.left + margin.right)
-            .attr('height', height + margin.top + margin.bottom)
+            .attr('width', containerWidth)
+            .attr('height', containerHeight)
             .append('g')
             .attr('transform', `translate(${margin.left},${margin.top})`);
 
@@ -131,7 +158,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 .range(['green', 'red']);
         }
 
-        // Adjust bar width for Chart 2
         const barWidth = container.id === 'chart2' ? x.bandwidth() * 0.5 : x.bandwidth();
 
         svg.append('g')
@@ -140,7 +166,7 @@ document.addEventListener('DOMContentLoaded', function() {
             .enter()
             .append('rect')
             .attr('class', 'bar')
-            .attr('x', d => x(d[0]) + (x.bandwidth() - barWidth) / 2) // Center the bar
+            .attr('x', d => x(d[0]) + (x.bandwidth() - barWidth) / 2)
             .attr('y', d => y(d[1]))
             .attr('width', barWidth)
             .attr('height', d => height - y(d[1]))
@@ -188,17 +214,17 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function renderPieChart(data, title, showLegend, container) {
-        const width = container.clientWidth;
-        const height = container.clientHeight;
-        const radius = Math.min(width, height) / 2 * 0.75;
+        const containerWidth = container.clientWidth;
+        const containerHeight = container.clientHeight;
+        const radius = Math.min(containerWidth, containerHeight) / 2 * 0.75;
 
         const svg = d3.select(container)
             .append('svg')
-            .attr('width', width)
-            .attr('height', height);
+            .attr('width', containerWidth)
+            .attr('height', containerHeight);
 
         const g = svg.append('g')
-            .attr('transform', `translate(${width / 3},${height / 2})`);
+            .attr('transform', `translate(${containerWidth / 3},${containerHeight / 2})`);
 
         const color = d3.scaleOrdinal(d3.schemeCategory10);
 
@@ -230,8 +256,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 .attr('transform', (d, i) => {
                     const height = legendRectSize + legendSpacing;
                     const offset = height * color.domain().length / 2;
-                    const horizontal = width * 2 / 3;
-                    const vertical = i * height + (svg.attr('height') / 2 - offset);
+                    const horizontal = containerWidth * 2 / 3;
+                    const vertical = i * height + (containerHeight / 2 - offset);
                     return `translate(${horizontal},${vertical})`;
                 });
 
@@ -248,7 +274,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         svg.append('text')
-            .attr('x', width / 2)
+            .attr('x', containerWidth / 2)
             .attr('y', 20)
             .attr('text-anchor', 'middle')
             .style('font-size', '16px')
