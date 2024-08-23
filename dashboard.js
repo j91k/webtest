@@ -5,7 +5,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const chart1Container = document.getElementById('chart1');
     const chart2Container = document.getElementById('chart2');
     const chart3Container = document.getElementById('chart3');
-    const chart4Container = document.getElementById('chart4');
+
+    let globalData;
 
     d3.json('data2.json').then(data => {
         if (!data || !Array.isArray(data)) {
@@ -13,37 +14,31 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        updateChart1('default', 'all', data);
-        updateChart2('default', 'all', data);
-        updateChart3(data);
-        updateChart4(data);
+        globalData = data;
 
-        filterSelect.addEventListener('change', function() {
-            updateChart1(filterSelect.value, latePaymentsFilterSelect.value, data);
-            updateChart2(filterSelect.value, creditScoreFilterSelect.value, data);
-        });
+        updateAllCharts();
 
-        latePaymentsFilterSelect.addEventListener('change', function() {
-            updateChart1(filterSelect.value, latePaymentsFilterSelect.value, data);
-        });
+        filterSelect.addEventListener('change', updateAllCharts);
+        latePaymentsFilterSelect.addEventListener('change', updateAllCharts);
+        creditScoreFilterSelect.addEventListener('change', updateAllCharts);
 
-        creditScoreFilterSelect.addEventListener('change', function() {
-            updateChart2(filterSelect.value, creditScoreFilterSelect.value, data);
-        });
-
-        window.addEventListener('resize', function() {
-            updateChart1(filterSelect.value, latePaymentsFilterSelect.value, data);
-            updateChart2(filterSelect.value, creditScoreFilterSelect.value, data);
-            updateChart3(data);
-            updateChart4(data);
-        });
+        window.addEventListener('resize', updateAllCharts);
     }).catch(error => {
         console.error('Error loading data:', error);
     });
 
-    function updateChart1(filter, latePayments, data) {
+    function updateAllCharts() {
+        updateChart1();
+        updateChart2();
+        updateChart3();
+    }
+
+    function updateChart1() {
         chart1Container.innerHTML = '';
-        let filteredData = latePayments !== 'all' ? data.filter(d => d.late_payments == latePayments) : data;
+        const filter = filterSelect.value;
+        const latePayments = latePaymentsFilterSelect.value;
+
+        let filteredData = latePayments !== 'all' ? globalData.filter(d => d.late_payments == latePayments) : globalData;
         let latePaymentsText = latePayments === 'all' ? 'All' : `${latePayments} times`;
         let aggregatedData;
 
@@ -74,14 +69,17 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    function updateChart2(filter, creditScoreFilter, data) {
+    function updateChart2() {
         chart2Container.innerHTML = '';
-        let filteredData = data;
+        const filter = filterSelect.value;
+        const creditScoreFilter = creditScoreFilterSelect.value;
+
+        let filteredData = globalData;
 
         if (creditScoreFilter === 'above30') {
-            filteredData = data.filter(d => d.cur_sept_category !== '30 or below');
+            filteredData = globalData.filter(d => d.cur_sept_category !== '30 or below');
         } else if (creditScoreFilter === 'below30') {
-            filteredData = data.filter(d => d.cur_sept_category === '30 or below');
+            filteredData = globalData.filter(d => d.cur_sept_category === '30 or below');
         }
 
         let aggregatedData;
@@ -109,22 +107,49 @@ document.addEventListener('DOMContentLoaded', function() {
                 break;
             default:
                 console.warn('Unknown filter type:', filter);
-                return;
         }
     }
 
-    function updateChart3(data) {
+    function updateChart3() {
         chart3Container.innerHTML = '';
-        // Add your chart 3 logic here
-        // For now, let's just add a placeholder text
-        chart3Container.textContent = 'Chart 3 placeholder';
+        const filter = filterSelect.value;
+        console.log("Selected filter for chart3:", filter);
+        let groupBy = filter === 'default' ? 'age_bin' : (filter === 'gender' ? 'sex' : filter);
+        console.log("GroupBy for aggregation:", groupBy);
+        let aggregatedData = aggregateDataForMultiLineChart(globalData, groupBy);
+        console.log("Aggregated data:", aggregatedData);
+        
+        if (aggregatedData.length === 0) {
+            console.error("No data to display for the selected filter");
+            chart3Container.innerHTML = '<p>No data available for the selected filter.</p>';
+            return;
+        }
+        
+        renderMultiLineChart(aggregatedData, 'Month', 'Average Bill Amount', chart3Container, filter);
     }
 
-    function updateChart4(data) {
-        chart4Container.innerHTML = '';
-        // Add your chart 4 logic here
-        // For now, let's just add a placeholder text
-        chart4Container.textContent = 'Chart 4 placeholder';
+    function aggregateDataForMultiLineChart(data, groupBy) {
+        const months = ['apr', 'may', 'june', 'july', 'aug', 'sept'];
+        let groups;
+    
+        if (groupBy === 'sex') {
+            groups = ['male', 'female'];
+        } else if (groupBy === 'age_bin') {
+            groups = ['18-24', '25-34', '35-44', '45-54', '55-64', '65+'];
+        } else {
+            groups = Array.from(new Set(data.map(d => d[groupBy]))).sort();
+        }
+    
+        return groups.map(group => {
+            let groupData = data.filter(d => d[groupBy].toLowerCase() === group.toLowerCase());
+            return {
+                group: group,
+                values: months.map(month => {
+                    let avgBill = d3.mean(groupData, d => +d[`bill_amt_${month}`]);
+                    return { month: month, avgBill: avgBill || 0 };
+                })
+            };
+        });
     }
 
     function renderBarChart(data, xLabel, yLabel, container, useGradient = false, isChart2Default = false, barPadding = 0.1) {
@@ -281,4 +306,111 @@ document.addEventListener('DOMContentLoaded', function() {
             .style('font-weight', 'bold')
             .text(title.toUpperCase());
     }
+
+    function renderMultiLineChart(data, xLabel, yLabel, container, filter) {
+        const margin = { top: 60, right: 150, bottom: 60, left: 80 };
+        const width = container.clientWidth - margin.left - margin.right;
+        const height = container.clientHeight - margin.top - margin.bottom;
+    
+        const svg = d3.select(container)
+            .append('svg')
+            .attr('width', width + margin.left + margin.right)
+            .attr('height', height + margin.top + margin.bottom)
+            .append('g')
+            .attr('transform', `translate(${margin.left},${margin.top})`);
+
+        const months = ['apr', 'may', 'june', 'july', 'aug', 'sept'];
+        const x = d3.scalePoint()
+            .domain(months)
+            .range([0, width]);
+
+        const y = d3.scaleLinear()
+            .domain([0, d3.max(data, d => d3.max(d.values, v => v.avgBill))])
+            .nice()
+            .range([height, 0]);
+
+        const color = d3.scaleOrdinal(d3.schemeCategory10);
+
+        const line = d3.line()
+            .x(d => x(d.month))
+            .y(d => y(d.avgBill));
+
+        data.forEach(d => {
+            svg.append('path')
+                .datum(d.values)
+                .attr('fill', 'none')
+                .attr('stroke', color(d.group))
+                .attr('stroke-width', 2)
+                .attr('d', line);
+
+            svg.selectAll('.dot')
+                .data(d.values)
+                .enter().append('circle')
+                .attr('class', 'dot')
+                .attr('cx', v => x(v.month))
+                .attr('cy', v => y(v.avgBill))
+                .attr('r', 4)
+                .attr('fill', color(d.group));
+        });
+
+        svg.append('g')
+            .attr('transform', `translate(0,${height})`)
+            .call(d3.axisBottom(x))
+            .selectAll('text')
+            .style('text-anchor', 'end')
+            .attr('dx', '-.8em')
+            .attr('dy', '.15em')
+            .attr('transform', 'rotate(-45)');
+
+        svg.append('g')
+            .call(d3.axisLeft(y));
+
+        svg.append('text')
+            .attr('transform', 'rotate(-90)')
+            .attr('y', 0 - margin.left)
+            .attr('x', 0 - (height / 2))
+            .attr('dy', '1em')
+            .style('text-anchor', 'middle')
+            .text(yLabel);
+
+        svg.append('text')
+            .attr('transform', `translate(${width/2}, ${height + margin.top + 20})`)
+            .style('text-anchor', 'middle')
+            .text(xLabel);
+
+        // Add title
+        const title = svg.append('text')
+        .attr('x', width / 2)
+        .attr('y', -margin.top / 2)
+        .attr('text-anchor', 'middle')
+        .style('font-size', '16px')
+        .style('font-weight', 'bold')
+        .text(`${yLabel} by ${filter === 'default' ? 'Age Group' : filter.charAt(0).toUpperCase() + filter.slice(1)}`);
+
+    // Add legend
+    const legendX = width + 3;
+    const legendY = -margin.top;
+
+    const legend = svg.append('g')
+        .attr('class', 'legend')
+        .attr('transform', `translate(${legendX}, ${legendY})`);
+
+    const legendItems = legend.selectAll('.legend-item')
+        .data(data)
+        .enter().append('g')
+        .attr('class', 'legend-item')
+        .attr('transform', (d, i) => `translate(0, ${i * 20})`);
+
+    legendItems.append('rect')
+        .attr('width', 18)
+        .attr('height', 18)
+        .style('fill', d => color(d.group));
+
+    legendItems.append('text')
+        .attr('x', 25)
+        .attr('y', 9)
+        .attr('dy', '.35em')
+        .style('text-anchor', 'start')
+        .text(d => d.group);
+}
 });
